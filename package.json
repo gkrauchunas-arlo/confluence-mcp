@@ -1,0 +1,31 @@
+{
+  "name": "confluence-mcp",
+  "version": "1.0.0",
+  "description": "Model Context Protocol (MCP) server for Atlassian Confluence integration with Claude Code",
+  "type": "module",
+  "main": "index.js",
+  "bin": {
+    "confluence-mcp": "./index.js"
+  },
+  "scripts": {
+    "start": "node index.js",
+    "test": "node test-mcp.js"
+  },
+  "keywords": [
+    "mcp",
+    "confluence",
+    "atlassian",
+    "claude",
+    "model-context-protocol"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "axios": "^1.14.0",
+    "dotenv": "^17.4.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
