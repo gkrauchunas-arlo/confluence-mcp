@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "confluence": {
+      "command": "node",
+      "args": ["/absolute/path/to/confluence-mcp/index.js"],
+      "env": {
+        "ATLASSIAN_SITE": "your-domain.atlassian.net",
+        "ATLASSIAN_EMAIL": "your-email@example.com",
+        "ATLASSIAN_API_TOKEN": "your-api-token-here"
+      }
+    }
+  }
+}

@@ -54,9 +54,17 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":
 
 ## Connecting to Claude Code
 
-### Option 1: CLI (Recommended)
+### Option 1: Quick Install (Recommended)
 ```bash
-claude mcp add --transport stdio confluence \
+cd confluence-mcp
+npm run install:user
+```
+
+This will install the MCP server in **user scope** - available in all your Claude Code sessions!
+
+### Option 2: Manual CLI Installation
+```bash
+claude mcp add confluence --scope user \
   --env ATLASSIAN_SITE="your-domain.atlassian.net" \
   --env ATLASSIAN_EMAIL="your-email@example.com" \
   --env ATLASSIAN_API_TOKEN="your-token" \
@@ -89,7 +97,17 @@ Add to your Claude Code MCP configuration file:
 - macOS: `~/Library/Application Support/claude-code/mcp_servers.json`
 - Windows: `%APPDATA%\claude-code\mcp_servers.json`
 
-After configuration, restart Claude Code to activate the MCP server.
+After configuration, the MCP server is immediately available in all Claude Code sessions!
+
+### Check Status
+```bash
+npm run status
+# or
+claude mcp list
+```
+
+### Quick Reference
+See [CHEATSHEET.md](CHEATSHEET.md) for quick command examples and [QUICKSTART.md](QUICKSTART.md) for detailed usage guide.
 
 ## Available Tools
 
