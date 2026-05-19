@@ -11,6 +11,7 @@
     "start": "node index.js",
     "test": "node test-mcp.js",
     "test:api": "node test-confluence.js",
+    "test:attachments": "node test-attachments.js",
     "install:user": "claude mcp add confluence --scope user --env ATLASSIAN_SITE=$ATLASSIAN_SITE --env ATLASSIAN_EMAIL=$ATLASSIAN_EMAIL --env ATLASSIAN_API_TOKEN=$ATLASSIAN_API_TOKEN -- node $(pwd)/index.js",
     "uninstall:user": "claude mcp remove confluence --scope user",
     "status": "claude mcp list"

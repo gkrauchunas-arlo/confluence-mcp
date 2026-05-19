@@ -123,11 +123,11 @@ See [CHEATSHEET.md](CHEATSHEET.md) for quick command examples and [QUICKSTART.md
 ### Read Content
 - **`confluence_get_page`** - Get page by ID
   - Parameters: `pageId` (string)
-  - Returns: Complete page data including content, version, and metadata
+  - Returns: Complete page data including content, version, metadata, and attachments with download URLs
 
 - **`confluence_get_page_by_title`** - Find page by title and space
   - Parameters: `title` (string), `spaceKey` (string)
-  - Returns: Page matching the exact title in the specified space
+  - Returns: Page matching the exact title in the specified space, including attachments
 
 - **`confluence_get_space`** - Get space information
   - Parameters: `spaceKey` (string)
@@ -150,6 +150,42 @@ See [CHEATSHEET.md](CHEATSHEET.md) for quick command examples and [QUICKSTART.md
 - **`confluence_add_labels`** - Add labels to a page
   - Parameters: `pageId` (string), `labels` (array of strings)
   - Adds one or more labels/tags to a page for categorization
+
+## Working with Attachments
+
+Pages retrieved via `confluence_get_page` and `confluence_get_page_by_title` automatically include attachment information. Each attachment contains:
+
+- **title**: Filename
+- **mediaType**: MIME type (e.g., `image/png`, `application/pdf`)
+- **fileSize**: Size in bytes
+- **download URL**: Relative path to download the file
+
+Example attachment structure:
+```json
+{
+  "children": {
+    "attachment": {
+      "results": [
+        {
+          "title": "diagram.png",
+          "extensions": {
+            "mediaType": "image/png",
+            "fileSize": 348053
+          },
+          "_links": {
+            "download": "/download/attachments/1320288861/diagram.png?version=1&..."
+          }
+        }
+      ]
+    }
+  }
+}
+```
+
+To download an attachment, construct the full URL:
+```
+https://{ATLASSIAN_SITE}/wiki{download_url}
+```
 
 ## Usage Examples
 
@@ -181,6 +217,12 @@ Update Confluence page 12345 to add a new section about authentication
 ```
 Add labels "documentation" and "api" to Confluence page 12345
 ```
+
+### View page with diagrams
+```
+Read page 1320288861 and show me all attached diagrams
+```
+The response will include download URLs for all images and diagrams attached to the page.
 
 ## CQL Query Examples
 

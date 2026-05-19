@@ -78,10 +78,15 @@ async function listSpaces(limit = 25) {
 /**
  * Get a specific page by ID
  */
-async function getPage(pageId) {
+async function getPage(pageId, includeAttachments = true) {
   try {
+    const expand = ['body.storage', 'version', 'space', 'ancestors'];
+    if (includeAttachments) {
+      expand.push('children.attachment');
+    }
+
     const response = await client.get(`${CONFLUENCE_API_BASE}/content/${pageId}`, {
-      params: { expand: 'body.storage,version,space,ancestors' }
+      params: { expand: expand.join(',') }
     });
     return response.data;
   } catch (error) {
@@ -92,13 +97,18 @@ async function getPage(pageId) {
 /**
  * Get page by title and space key
  */
-async function getPageByTitle(title, spaceKey) {
+async function getPageByTitle(title, spaceKey, includeAttachments = true) {
   try {
+    const expand = ['body.storage', 'version', 'space'];
+    if (includeAttachments) {
+      expand.push('children.attachment');
+    }
+
     const response = await client.get(`${CONFLUENCE_API_BASE}/content`, {
       params: {
         title,
         spaceKey,
-        expand: 'body.storage,version,space'
+        expand: expand.join(',')
       }
     });
 
@@ -264,7 +274,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: 'confluence_get_page',
-        description: 'Get a Confluence page by ID including its content, version, and metadata',
+        description: 'Get a Confluence page by ID including its content, version, metadata, and attachments. Attachments include download URLs for images and diagrams.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -278,7 +288,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: 'confluence_get_page_by_title',
-        description: 'Find a Confluence page by its title and space key',
+        description: 'Find a Confluence page by its title and space key. Returns page content, metadata, and attachments with download URLs.',
         inputSchema: {
           type: 'object',
           properties: {
