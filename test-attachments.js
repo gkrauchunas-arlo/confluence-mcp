@@ -26,15 +26,55 @@ const client = axios.create({
 });
 
 async function testGetPageWithAttachments() {
-  console.log('Testing confluence_get_page with attachments...\n');
+  console.log('Testing confluence_get_page with filtered attachments...\n');
 
   try {
+    // Import the actual getPage function would be better, but for now let's replicate the logic
     const expand = ['body.storage', 'version', 'space', 'ancestors', 'children.attachment'];
     const response = await client.get(`${CONFLUENCE_API_BASE}/content/1320288861`, {
       params: { expand: expand.join(',') }
     });
 
-    const page = response.data;
+    let page = response.data;
+
+    // Apply same filtering as in index.js
+    if (page.children && page.children.attachment) {
+      const htmlContent = page.body?.storage?.value;
+      const attachments = page.children.attachment;
+
+      // Extract referenced attachments
+      const referenced = new Set();
+      if (htmlContent) {
+        const imageMatches = htmlContent.matchAll(/ri:filename="([^"]+)"/g);
+        for (const match of imageMatches) {
+          referenced.add(match[1]);
+        }
+        const drawioMatches = htmlContent.matchAll(/<ac:adf-parameter key="diagram-name">([^<]+)<\/ac:adf-parameter>/g);
+        for (const match of drawioMatches) {
+          referenced.add(match[1]);
+          referenced.add(match[1] + '.png');
+        }
+        const displayNameMatches = htmlContent.matchAll(/<ac:adf-parameter key="diagram-display-name">([^<]+)<\/ac:adf-parameter>/g);
+        for (const match of displayNameMatches) {
+          referenced.add(match[1]);
+          referenced.add(match[1] + '.png');
+        }
+      }
+
+      // Filter
+      const filtered = attachments.results.filter(att => {
+        const title = att.title || '';
+        if (title.startsWith('~drawio~') || title.endsWith('.tmp')) return false;
+        if (referenced.size > 0) return referenced.has(title);
+        return true;
+      });
+
+      page.children.attachment = {
+        ...attachments,
+        results: filtered,
+        size: filtered.length
+      };
+    }
 
     console.log('✓ Page retrieved successfully');
     console.log(`  Title: ${page.title}`);

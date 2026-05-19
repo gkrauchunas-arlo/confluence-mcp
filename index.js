@@ -76,6 +76,69 @@ async function listSpaces(limit = 25) {
 }
 
 /**
+ * Extract attachment filenames referenced in page content
+ */
+function extractReferencedAttachments(htmlContent) {
+  if (!htmlContent) return new Set();
+
+  const referenced = new Set();
+
+  // Find <ac:image> tags with ri:filename
+  const imageMatches = htmlContent.matchAll(/ri:filename="([^"]+)"/g);
+  for (const match of imageMatches) {
+    referenced.add(match[1]);
+  }
+
+  // Find draw.io diagram references
+  const drawioMatches = htmlContent.matchAll(/<ac:adf-parameter key="diagram-name">([^<]+)<\/ac:adf-parameter>/g);
+  for (const match of drawioMatches) {
+    const diagramName = match[1];
+    // Add both .drawio and .drawio.png versions
+    referenced.add(diagramName);
+    referenced.add(diagramName + '.png');
+  }
+
+  // Find diagram-display-name (alternative draw.io reference)
+  const displayNameMatches = htmlContent.matchAll(/<ac:adf-parameter key="diagram-display-name">([^<]+)<\/ac:adf-parameter>/g);
+  for (const match of displayNameMatches) {
+    const diagramName = match[1];
+    referenced.add(diagramName);
+    referenced.add(diagramName + '.png');
+  }
+
+  return referenced;
+}
+
+/**
+ * Filter attachments to only include those referenced in page content
+ */
+function filterAttachments(attachments, htmlContent) {
+  if (!attachments || !attachments.results) {
+    return attachments;
+  }
+
+  // First, filter out temporary/system files
+  let filtered = attachments.results.filter(att => {
+    const title = att.title || '';
+    return !title.startsWith('~drawio~') && !title.endsWith('.tmp');
+  });
+
+  // If we have HTML content, further filter to only referenced attachments
+  if (htmlContent) {
+    const referenced = extractReferencedAttachments(htmlContent);
+    if (referenced.size > 0) {
+      filtered = filtered.filter(att => referenced.has(att.title));
+    }
+  }
+
+  return {
+    ...attachments,
+    results: filtered,
+    size: filtered.length
+  };
+}
+
+/**
  * Get a specific page by ID
  */
 async function getPage(pageId, includeAttachments = true) {
@@ -88,7 +151,16 @@ async function getPage(pageId, includeAttachments = true) {
     const response = await client.get(`${CONFLUENCE_API_BASE}/content/${pageId}`, {
       params: { expand: expand.join(',') }
     });
-    return response.data;
+
+    const data = response.data;
+
+    // Filter to only attachments referenced in page content
+    if (includeAttachments && data.children && data.children.attachment) {
+      const htmlContent = data.body?.storage?.value;
+      data.children.attachment = filterAttachments(data.children.attachment, htmlContent);
+    }
+
+    return data;
   } catch (error) {
     throw new Error(`Failed to get page: ${error.message}`);
   }
@@ -113,7 +185,15 @@ async function getPageByTitle(title, spaceKey, includeAttachments = true) {
     });
 
     if (response.data.results && response.data.results.length > 0) {
-      return response.data.results[0];
+      const data = response.data.results[0];
+
+      // Filter to only attachments referenced in page content
+      if (includeAttachments && data.children && data.children.attachment) {
+        const htmlContent = data.body?.storage?.value;
+        data.children.attachment = filterAttachments(data.children.attachment, htmlContent);
+      }
+
+      return data;
     }
     throw new Error(`Page not found: ${title} in space ${spaceKey}`);
   } catch (error) {
