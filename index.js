@@ -300,6 +300,139 @@ async function getAttachments(pageId) {
   }
 }
 
+/**
+ * Download an attachment by page ID and attachment ID
+ * Uses REST API v1 endpoint which supports API token authentication
+ */
+async function downloadAttachment(pageId, attachmentId) {
+  try {
+    const response = await client.get(
+      `${CONFLUENCE_API_BASE}/content/${pageId}/child/attachment/${attachmentId}/download`,
+      {
+        responseType: 'arraybuffer'
+      }
+    );
+
+    return {
+      content: Buffer.from(response.data).toString('utf-8'),
+      contentType: response.headers['content-type'],
+      size: response.data.length
+    };
+  } catch (error) {
+    throw new Error(`Failed to download attachment: ${error.message}`);
+  }
+}
+
+/**
+ * Upload/update an attachment
+ */
+async function uploadAttachment(pageId, filename, content, contentType = 'application/octet-stream') {
+  try {
+    const FormData = (await import('form-data')).default;
+    const form = new FormData();
+
+    // Decode base64 if provided
+    const buffer = Buffer.isBuffer(content) ? content : Buffer.from(content, 'base64');
+
+    form.append('file', buffer, {
+      filename,
+      contentType
+    });
+    form.append('minorEdit', 'true');
+
+    const response = await client.put(
+      `${CONFLUENCE_API_BASE}/content/${pageId}/child/attachment`,
+      form,
+      {
+        headers: {
+          ...form.getHeaders(),
+          'X-Atlassian-Token': 'no-check'
+        }
+      }
+    );
+
+    return response.data;
+  } catch (error) {
+    throw new Error(`Failed to upload attachment: ${error.message}`);
+  }
+}
+
+/**
+ * Update a draw.io diagram and replace links on the page
+ * This creates a new version of the diagram and updates all references on the page
+ */
+async function updateDiagramWithLinks(pageId, oldFilename, newContent) {
+  try {
+    const FormData = (await import('form-data')).default;
+
+    // Step 1: Upload as new file with -UPDATED suffix
+    const newFilename = oldFilename.replace('.drawio', '-UPDATED.drawio');
+    const form = new FormData();
+
+    form.append('file', Buffer.from(newContent, 'utf-8'), {
+      filename: newFilename,
+      contentType: 'application/vnd.jgraph.mxfile'
+    });
+    form.append('comment', 'Updated diagram via MCP');
+
+    const uploadResp = await client.post(
+      `${CONFLUENCE_API_BASE}/content/${pageId}/child/attachment`,
+      form,
+      {
+        headers: {
+          ...form.getHeaders(),
+          'X-Atlassian-Token': 'nocheck'
+        }
+      }
+    );
+
+    const newAttachment = uploadResp.data.results[0];
+
+    // Step 2: Get page content
+    const pageResp = await client.get(
+      `${CONFLUENCE_API_BASE}/content/${pageId}`,
+      {
+        params: { expand: 'body.storage,version' }
+      }
+    );
+
+    const page = pageResp.data;
+    let html = page.body.storage.value;
+
+    // Step 3: Replace all references to old filename with new filename
+    const oldEscaped = oldFilename.replace('.', '\\.');
+    const regex = new RegExp(oldEscaped, 'g');
+    const replacedCount = (html.match(regex) || []).length;
+
+    html = html.replace(regex, newFilename);
+
+    // Step 4: Update page
+    const updateResp = await client.put(
+      `${CONFLUENCE_API_BASE}/content/${pageId}`,
+      {
+        version: { number: page.version.number + 1 },
+        title: page.title,
+        type: 'page',
+        body: {
+          storage: {
+            value: html,
+            representation: 'storage'
+          }
+        }
+      }
+    );
+
+    return {
+      newAttachmentId: newAttachment.id,
+      newFilename: newFilename,
+      replacedLinksCount: replacedCount,
+      pageVersion: updateResp.data.version.number
+    };
+  } catch (error) {
+    throw new Error(`Failed to update diagram with links: ${error.message}`);
+  }
+}
+
 // Create MCP server
 const server = new Server(
   {
@@ -483,6 +616,72 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ['pageId'],
         },
       },
+      {
+        name: 'confluence_download_attachment',
+        description: 'Download the content of an attachment (e.g., draw.io diagram). Requires page ID and attachment ID.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            pageId: {
+              type: 'string',
+              description: 'The page ID containing the attachment',
+            },
+            attachmentId: {
+              type: 'string',
+              description: 'The attachment ID (e.g., att1322876959)',
+            },
+          },
+          required: ['pageId', 'attachmentId'],
+        },
+      },
+      {
+        name: 'confluence_upload_attachment',
+        description: 'Upload or update an attachment on a page. Creates new version if file exists.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            pageId: {
+              type: 'string',
+              description: 'The ID of the page',
+            },
+            filename: {
+              type: 'string',
+              description: 'The filename (e.g., diagram.drawio)',
+            },
+            content: {
+              type: 'string',
+              description: 'The file content (for text files like .drawio, provide the text content directly)',
+            },
+            contentType: {
+              type: 'string',
+              description: 'MIME type (default: application/octet-stream, for draw.io use application/vnd.jgraph.mxfile)',
+            },
+          },
+          required: ['pageId', 'filename', 'content'],
+        },
+      },
+      {
+        name: 'confluence_update_diagram',
+        description: 'Update a draw.io diagram and automatically replace all links on the page. This uploads the updated diagram as a new file (with -UPDATED suffix) and updates all references on the page to point to the new version.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            pageId: {
+              type: 'string',
+              description: 'The ID of the page containing the diagram',
+            },
+            filename: {
+              type: 'string',
+              description: 'The current filename of the diagram (e.g., diagram.drawio)',
+            },
+            content: {
+              type: 'string',
+              description: 'The updated diagram content (XML)',
+            },
+          },
+          required: ['pageId', 'filename', 'content'],
+        },
+      },
     ],
   };
 });
@@ -610,6 +809,51 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             {
               type: 'text',
               text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      }
+
+      case 'confluence_download_attachment': {
+        const result = await downloadAttachment(args.pageId, args.attachmentId);
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Content-Type: ${result.contentType}\nSize: ${result.size} bytes\n\n${result.content}`,
+            },
+          ],
+        };
+      }
+
+      case 'confluence_upload_attachment': {
+        const result = await uploadAttachment(
+          args.pageId,
+          args.filename,
+          args.content,
+          args.contentType
+        );
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      }
+
+      case 'confluence_update_diagram': {
+        const result = await updateDiagramWithLinks(
+          args.pageId,
+          args.filename,
+          args.content
+        );
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `✅ Diagram updated successfully!\n\nNew file: ${result.newFilename}\nAttachment ID: ${result.newAttachmentId}\nLinks replaced: ${result.replacedLinksCount}\nPage version: ${result.pageVersion}\n\nAll references on the page now point to the updated diagram.`,
             },
           ],
         };

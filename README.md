@@ -54,7 +54,11 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":
 
 ## Connecting to Claude Code
 
-### Option 1: Quick Install (Recommended)
+### Mode 1: stdio (Desktop/Web)
+
+stdio mode works in Claude Code Desktop and Web versions.
+
+#### Quick Install (Recommended)
 ```bash
 cd confluence-mcp
 npm run install:user
@@ -73,7 +77,7 @@ claude mcp add confluence --scope user \
 
 Replace `/absolute/path/to/` with your actual installation path (e.g., `/home/username/confluence-mcp`).
 
-### Option 2: Configuration File
+#### Configuration File
 Add to your Claude Code MCP configuration file:
 
 ```json
@@ -93,11 +97,68 @@ Add to your Claude Code MCP configuration file:
 ```
 
 **Configuration file locations:**
-- Linux: `~/.config/claude-code/mcp_servers.json` or `~/.claude/config/mcp_servers.json`
+- Linux: `~/.config/claude-code/mcp_servers.json` or `~/.claude/.mcp.json`
 - macOS: `~/Library/Application Support/claude-code/mcp_servers.json`
 - Windows: `%APPDATA%\claude-code\mcp_servers.json`
 
 After configuration, the MCP server is immediately available in all Claude Code sessions!
+
+---
+
+### Mode 2: HTTP (CLI)
+
+HTTP mode is required for Claude Code CLI, as it doesn't support stdio MCP servers.
+
+#### Step 1: Start HTTP server
+
+```bash
+cd confluence-mcp
+npm run start:http
+```
+
+Or in background:
+```bash
+cd confluence-mcp
+node http-server.js &
+```
+
+Server will run on `http://localhost:3456` by default. Use `PORT` environment variable to change.
+
+#### Step 2: Configure MCP
+
+Add to `~/.claude/.mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "confluence": {
+      "type": "http",
+      "url": "http://localhost:3456/mcp"
+    }
+  }
+}
+```
+
+#### Step 3: Restart Claude Code
+
+```bash
+exit
+claude
+```
+
+#### Health Check
+
+```bash
+curl http://localhost:3456/health
+```
+
+Should return:
+```json
+{
+  "status": "ok",
+  "service": "confluence-mcp-http"
+}
+```
 
 ### Check Status
 ```bash
@@ -155,10 +216,10 @@ See [CHEATSHEET.md](CHEATSHEET.md) for quick command examples and [QUICKSTART.md
 
 Pages retrieved via `confluence_get_page` and `confluence_get_page_by_title` automatically include attachment information. Each attachment contains:
 
+- **id**: Attachment ID (e.g., `att1322876959`) - used for downloading
 - **title**: Filename
 - **mediaType**: MIME type (e.g., `image/png`, `application/pdf`)
 - **fileSize**: Size in bytes
-- **download URL**: Relative path to download the file
 
 Example attachment structure:
 ```json
@@ -167,13 +228,11 @@ Example attachment structure:
     "attachment": {
       "results": [
         {
+          "id": "att1322876959",
           "title": "diagram.png",
           "extensions": {
             "mediaType": "image/png",
             "fileSize": 348053
-          },
-          "_links": {
-            "download": "/download/attachments/1320288861/diagram.png?version=1&..."
           }
         }
       ]
@@ -182,10 +241,25 @@ Example attachment structure:
 }
 ```
 
-To download an attachment, construct the full URL:
+### Downloading Attachments
+
+Use the `confluence_download_attachment` tool with the attachment ID:
+
+```javascript
+// Get page with attachments
+const page = await confluence_get_page({ pageId: "1320288861" });
+
+// Find the attachment you need
+const attachment = page.children.attachment.results.find(a => a.title === "diagram.drawio");
+
+// Download it
+const content = await confluence_download_attachment({
+  pageId: "1320288861",
+  attachmentId: attachment.id  // e.g., "att1322876959"
+});
 ```
-https://{ATLASSIAN_SITE}/wiki{download_url}
-```
+
+The download uses the REST API v1 endpoint (`/wiki/rest/api/content/{pageId}/child/attachment/{attachmentId}/download`) which supports API token authentication, unlike the browser-only download URLs.
 
 ## Usage Examples
 

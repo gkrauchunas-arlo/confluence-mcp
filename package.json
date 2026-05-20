@@ -9,9 +9,11 @@
   },
   "scripts": {
     "start": "node index.js",
+    "start:http": "node http-server.js",
     "test": "node test-mcp.js",
     "test:api": "node test-confluence.js",
     "test:attachments": "node test-attachments.js",
+    "test:download": "node test-download.js",
     "install:user": "claude mcp add confluence --scope user --env ATLASSIAN_SITE=$ATLASSIAN_SITE --env ATLASSIAN_EMAIL=$ATLASSIAN_EMAIL --env ATLASSIAN_API_TOKEN=$ATLASSIAN_API_TOKEN -- node $(pwd)/index.js",
     "uninstall:user": "claude mcp remove confluence --scope user",
     "status": "claude mcp list"
@@ -28,7 +30,9 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
     "axios": "^1.14.0",
-    "dotenv": "^17.4.0"
+    "dotenv": "^17.4.0",
+    "express": "^5.2.1",
+    "form-data": "^4.0.5"
   },
   "engines": {
     "node": ">=18.0.0"

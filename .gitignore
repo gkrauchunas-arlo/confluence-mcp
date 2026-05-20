@@ -145,3 +145,21 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# Downloaded diagrams and test files
+*.drawio
+!.gitkeep
+*-diagram*.js
+download-*.js
+test-*.js
+fix-*.js
+align-*.js
+replace-*.js
+update-*.js
+upload-*.js
+increase-*.js
+correct-*.js
+final-*.js
+add-*.js
+check-*.js
+remove-*.js
